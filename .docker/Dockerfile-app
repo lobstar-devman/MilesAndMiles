@@ -97,7 +97,10 @@ RUN echo "Running image-mode-baked step"
 # The repo to clone is defined in the local .env/compose.yaml file
 RUN --mount=type=secret,required=true,id=github_ssh,target=/etc/ssh/id_rsa_github \
     git config --global --add safe.directory /workspace/app  && \
-    git clone --no-checkout $APP_REPO $REPO_ROOT
+    git clone --no-checkout $APP_REPO /workspace/app
+
+# Switch permissions to vscode
+RUN chown -R vscode:vscode /workspace
 
 USER vscode
 
@@ -122,8 +125,6 @@ RUN (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
 	&& sudo apt update \
 	&& sudo apt install gh -y
 
-RUN git config --global --add safe.directory /workspace/app
-
 RUN mkdir /host
 
 #Increment to force docker compose rebuild from this step
@@ -146,10 +147,11 @@ WORKDIR /workspace
 ### Final Image
 ###
 
-# Arguments that are defined in the global scope so are not automatically available inside build stages or for your RUN commands.
-# To expose one of these arguments inside the build stage redefine it without value
-ARG IMAGE_MODE
 RUN echo "Building final image using image-mode-$IMAGE_MODE"
 
 FROM image-mode-${IMAGE_MODE} AS final-dev-image
-ENV IMAGE_MODE=$IMAGE_MODE
+
+# Arguments that are defined in the global scope so are not automatically available inside build stages or for your RUN commands.
+# To expose one of these arguments inside the build stage redefine it without value
+ARG IMAGE_MODE
+ENV IMAGE_MODE=${IMAGE_MODE}

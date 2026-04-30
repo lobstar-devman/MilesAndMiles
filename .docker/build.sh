@@ -1,5 +1,6 @@
 #!/bin/bash
 
+THIS_DIR="$(dirname "$0")"
 cd "$(dirname "$0")"/..
 
 ### 
@@ -39,7 +40,7 @@ if [ -f "$REPO_ROOT/$IMPORT_DATABASE" ]; then
 fi
 
 # Point image Apache document root to app document root
-./apache.sh
+$THIS_DIR/apache.sh
 
 echo "🎉 App is ready for development!"
 

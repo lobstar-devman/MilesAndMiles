@@ -38,6 +38,8 @@ fi
 # Check for .gitignore
 if { [ ! -z "${APP_REPO}" ] && [ ! -f "$REPO_ROOT/.gitignore" ]; }; then
    
+   git config --global --add safe.directory $REPO_ROOT
+
    # checkout the repo / branch set in the .env file
    BRANCH="${APP_BRANCH:-main}"
 
