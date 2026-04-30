@@ -1,0 +1,155 @@
+#https://docs.docker.com/reference/dockerfile/#arg
+ARG IMAGE_MODE=setup
+
+#https://hub.docker.com/r/microsoft/devcontainers-php
+FROM mcr.microsoft.com/devcontainers/php:8.5 AS base_image
+
+USER root
+
+# Install system dependencies and PostgreSQL in one layer
+RUN rm -f /etc/apt/sources.list.d/yarn.list /etc/apt/sources.list.d/yarn*.list || true
+RUN apt-get update && apt-get install -y \
+    libjpeg-dev \
+    libpng-dev \
+	libicu-dev \
+    postgresql-client \
+	nodejs npm \
+    dos2unix \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install PHP extensions
+RUN docker-php-ext-configure pcntl --enable-pcntl && \
+    docker-php-ext-install pcntl
+
+# Install Postgres PDO
+RUN apt-get update && apt-get install -y libpq-dev \
+    && docker-php-ext-configure pgsql -with-pgsql=/usr/local/pgsql \
+    && docker-php-ext-install pdo pdo_pgsql pgsql
+        
+RUN docker-php-ext-install exif
+
+RUN docker-php-ext-configure intl --enable-intl && \
+    docker-php-ext-install intl
+
+# Install heroku cli
+RUN curl https://cli-assets.heroku.com/install-ubuntu.sh | sh
+
+# Configure Apache
+RUN a2dismod mpm_event && \
+    a2enmod rewrite && \
+    a2enmod ssl
+
+###
+### Dev Image
+###
+
+FROM base_image AS dev_image
+
+#disable xdebug
+RUN mv /usr/local/etc/php/conf.d/xdebug.ini /usr/local/etc/php/disable-xdebug.ini
+#COPY xdebug.ini /usr/local/etc/php/conf.d/xdebug.ini
+
+COPY --chmod=544 entrypoint /entrypoint
+
+# Apache debugging
+# To use:
+# $ sudo a2enconf debug.conf
+# $ sudo apachectl restart
+COPY debug.conf  /etc/apache2/conf-available
+
+# Apache conf files
+COPY 001-app.conf  /etc/apache2/sites-available/001-app.conf
+COPY app.conf  /etc/apache2/sites-common/app.conf
+
+# Unused - but included for completeness
+COPY 001-app-ssl.conf  /etc/apache2/sites-available/001-app-ssl.conf
+
+RUN a2dissite 000-default.conf && \
+    a2ensite 001-app.conf
+
+# Add github to system wide known_hosts file
+RUN ssh-keyscan github.com >> /etc/ssh/ssh_known_hosts
+
+# Configure ssh to use the github_ssh key file
+# During the docker build process the key is mounted as a secret with which git commands can be run (see the RUN command below)
+# When the container is running the key is provided by a service:secret
+COPY github_ssh_config /etc/ssh/ssh_config.d/github.conf
+
+# Create workspace and switch permissions to vscode
+RUN mkdir /workspace
+RUN chown -R vscode:vscode /workspace
+ENV REPO_ROOT="/workspace/app"
+
+ARG dev_image_BUMP=1
+
+###
+### Conditional images
+###
+
+FROM dev_image AS image-mode-baked
+ARG APP_REPO
+##
+# The image_mode ENVAR in the .env file determines wether or not
+# this container is built with the repo already baked into into it.
+##
+RUN echo "Running image-mode-baked step"
+
+# The repo to clone is defined in the local .env/compose.yaml file
+RUN --mount=type=secret,required=true,id=github_ssh,target=/etc/ssh/id_rsa_github \
+    git config --global --add safe.directory /workspace/app  && \
+    git clone --no-checkout $APP_REPO $REPO_ROOT
+
+USER vscode
+
+# Lets be nice ...
+WORKDIR $REPO_ROOT
+
+
+FROM dev_image AS image-mode-setup
+##
+# Build container with no baked in repo
+##
+RUN echo "Running image-mode-setup step"
+
+# Install GitHub command line (gh)
+RUN (type -p wget >/dev/null || (sudo apt update && sudo apt install wget -y)) \
+	&& sudo mkdir -p -m 755 /etc/apt/keyrings \
+	&& out=$(mktemp) && wget -nv -O$out https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+	&& cat $out | sudo tee /etc/apt/keyrings/githubcli-archive-keyring.gpg > /dev/null \
+	&& sudo chmod go+r /etc/apt/keyrings/githubcli-archive-keyring.gpg \
+	&& sudo mkdir -p -m 755 /etc/apt/sources.list.d \
+	&& echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" | sudo tee /etc/apt/sources.list.d/github-cli.list > /dev/null \
+	&& sudo apt update \
+	&& sudo apt install gh -y
+
+RUN git config --global --add safe.directory /workspace/app
+
+RUN mkdir /host
+
+#Increment to force docker compose rebuild from this step
+ARG image-mode-setup_BUMP=2
+
+#copy current build folder to container
+COPY --chown=vscode:vscode --chmod=-x . /host/
+
+#make the relevant files executable
+RUN chmod -R -x+X /host/ && chmod -R +x /host/*.sh && find /host/ -type f -exec dos2unix '{}' '+'
+
+USER vscode
+
+RUN composer global require laravel/installer
+ENV PATH="~/.config/composer/vendor/bin:$PATH"
+
+WORKDIR /workspace
+
+###
+### Final Image
+###
+
+# Arguments that are defined in the global scope so are not automatically available inside build stages or for your RUN commands.
+# To expose one of these arguments inside the build stage redefine it without value
+ARG IMAGE_MODE
+RUN echo "Building final image using image-mode-$IMAGE_MODE"
+
+FROM image-mode-${IMAGE_MODE} AS final-dev-image
+ENV IMAGE_MODE=$IMAGE_MODE

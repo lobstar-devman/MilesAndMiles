@@ -1,0 +1,48 @@
+FROM mcr.microsoft.com/devcontainers/javascript-node AS node_base
+
+# Install system dependencies and PostgreSQL in one layer
+RUN apt-get update && apt-get install -y \
+    libnss3 libnspr4 libatk1.0-0 libatk-bridge2.0-0 \
+    libcups2 libdrm2 libxkbcommon0 libxcomposite1 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libasound2
+
+ARG USERNAME=vscode
+ARG USER_UID=1001
+ARG USER_GID=$USER_UID
+
+# AWS CLI    
+RUN curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o "awscliv2.zip" && \
+    unzip awscliv2.zip && \
+    sudo ./aws/install    
+
+FROM node_base AS playwright_image
+
+COPY --chmod=544 entrypoint /entrypoint
+
+# Add github to system wide known_hosts file
+RUN ssh-keyscan github.com >> /etc/ssh/ssh_known_hosts
+
+# Configure ssh to use the github_ssh key file
+# During the docker build process the key is mounted as a secret with which the git clone command is run (see the RUN command below)
+# When the container is running the key is provided by a service:secret
+COPY github_ssh_config /etc/ssh/ssh_config.d/github.conf
+
+# The repo to clone is defined in the local .env/compose.yaml file
+ARG REPO
+
+# Clone the repo without pulling down any files 
+# to populate the repo with files run:
+# $ git checkout <branch>
+RUN --mount=type=secret,required=true,id=github_ssh,target=/etc/ssh/id_rsa_github \
+    git config --global --add safe.directory /workspace/app && \
+    git clone --no-checkout $REPO /workspace/app    
+
+# Switch permissions to node (vscode will use the last user defined in the dockerfile)
+RUN chown -R node:node /workspace
+
+USER node
+
+ENV REPO_ROOT="/workspace/app"
+
+# Lets be nice ...
+WORKDIR $REPO_ROOT

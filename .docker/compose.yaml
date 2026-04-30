@@ -1,0 +1,180 @@
+#https://docs.docker.com/compose/how-tos/environment-variables/envvars/
+name: ${CONTAINER_NAME}
+
+services:
+    app:
+        depends_on:
+            - postgres
+        build:
+            dockerfile: Dockerfile-app
+            target: final-dev-image
+            args:
+              #Note: To reference a value from the local .env file use: ${ENVVAR}            
+              APP_REPO: ${APP_REPO}
+              IMAGE_MODE: ${IMAGE_MODE}
+
+            ##
+            # https://docs.docker.com/build/building/secrets/
+            ##
+            #secrets:
+            #    # Note that support for uid, gid, and mode attributes are not implemented in Docker Compose when 
+            #    # the source of the secret is a file. This is because bind-mounts used under the hood don't allow uid remapping.            
+            secrets:
+                - github_ssh
+
+        ports:
+            - "8080:8080"
+            - "9000:9000"
+
+        environment:
+            #used in /entrypoint
+            - GITHUB_USERNAME
+            - GITHUB_EMAIL
+            - APP_REPO
+            - APP_BRANCH        
+            - IMPORT_DATABASE
+
+            # Laravel envvars
+            - APP_ENV=local
+            - APP_DEBUG=true
+            - APP_URL
+            - APP_KEY
+            - DB_CONNECTION=pgsql
+            - DB_URL=postgresql://${PGUSER}:${PGPWD}@postgres/${PGUSER}
+            - TEST_DATABASE_URL=postgresql://${PGUSER}:${PGPWD}@testdb:5432/${PGUSER}
+
+            # psql envars
+            - PGHOST=postgres
+            - PGUSER=${PGUSER}
+            - PGPASSWORD=${PGPWD}
+            - PGDATABASE=${PGUSER}
+
+        secrets:
+            # Github ssh key
+            - source: github_ssh
+              target: /etc/ssh/id_rsa_github
+
+        # Override docker-php-entrypoint in /usr/local/bin/docker-php-entrypoint
+        entrypoint: /entrypoint --entrypoint docker-php-entrypoint
+        command: apache2-foreground --
+
+    # end-to-end:
+        # depends_on:
+            # - app
+            # - playwright
+        # build:
+            # dockerfile: Dockerfile-playwright
+            # target: playwright_image
+            # args:
+              # #Note: To reference a value from the local .env file use: ${ENVVAR}            
+              # REPO: ${E2E_REPO}
+
+            # secrets:
+                # - github_ssh      
+
+        # ports:
+            # - "9323:9323"
+
+        # # https://docs.docker.com/reference/compose-file/services/#environment
+        # environment:
+            # - GITHUB_USERNAME   #used in /entrypoint
+            # - GITHUB_EMAIL      #used in /entrypoint
+            # - REPO_BRANCH=${E2E_BRANCH}
+            # - URLS=${E2EURLS}
+            # - AWS_SECRET_PAYLOAD
+            # - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+        # secrets:
+            # # Github ssh key
+            # - source: github_ssh
+              # target: /etc/ssh/id_rsa_github
+
+        # entrypoint: /entrypoint --entrypoint npx
+        # command: playwright test --ui --ui-host=0.0.0.0 --ui-port=9323 --
+
+        # volumes_from:
+            # - playwright:ro
+
+
+    postgres:
+        image: postgres
+        restart: unless-stopped
+        # set shared memory limit when using docker compose
+        shm_size: 128mb
+        # or set shared memory limit when deploy via swarm stack
+        #volumes:
+        #  - type: tmpfs
+        #    target: /dev/shm
+        #    tmpfs:
+        #      size: 134217728 # 128*2^20 bytes = 128Mb
+        environment:
+            POSTGRES_PASSWORD: ${PGPWD}        
+            POSTGRES_USER: ${PGUSER}
+
+        # https://www.docker.com/blog/how-to-use-the-postgres-docker-official-image/
+        #healthcheck:
+        #    test: ["CMD-SHELL", "pg_isready"]
+        #    interval: 1s
+        #    timeout: 5s
+        #    retries: 10        
+
+    testdb:
+        image: postgres
+        restart: unless-stopped
+        shm_size: 128mb
+        environment:
+            POSTGRES_PASSWORD: ${PGPWD}        
+            POSTGRES_USER: ${PGUSER}
+
+    playwright:
+        image: mcr.microsoft.com/playwright:v1.55.1-noble
+        #https://playwright.dev/docs/docker#recommended-docker-configuration
+        init: true
+        ipc: "host"
+        restart: unless-stopped
+        command: sleep infinity
+        volumes:
+            - /ms-playwright
+
+        ##
+        # In the admin login screen use the following:
+        # System: Postgres
+        # Server: postgres:5432
+        # Username: <POSTGRES_USER> or postgres if not set
+        # Password: <POSTGRES_PASSWORD> (see POSTGRES_PASSWORD in postgres service)
+        ##
+    adminer:
+        depends_on:
+            - postgres
+        image: adminer
+        restart: unless-stopped
+        environment:
+            #- ADMINER_DEFAULT_SERVER=postgres
+            - POSTGRES_PASSWORD=${PGPWD}
+            - POSTGRES_USER=${PGUSER}
+        ports:
+            - 8085:8080        
+        volumes:
+            - ./adminer:/var/www/html/plugins-enabled
+
+    ngrok:
+        #https://ngrok.com/docs/using-ngrok-with/docker/compose
+        image: ngrok/ngrok:latest
+        restart: unless-stopped
+        command:
+            - "http"
+            - "http://host.docker.internal:8080"
+            - "--url"
+            - "$APP_URL"
+        environment:
+            - NGROK_AUTHTOKEN
+            - APP_URL
+        ports:
+            - 4040:4040            
+
+secrets:            
+    github_ssh:
+        file: 
+            ${GITHUB_SSH}
+
+#TODO: https://docs.docker.com/compose/how-tos/use-secrets/        
