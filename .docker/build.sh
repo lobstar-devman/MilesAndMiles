@@ -24,6 +24,8 @@ npm audit fix
 npm run build
 echo "✅ Node dependencies installed successfully!"
 
+php artisan migrate 
+
 # Browser list
 echo "🕸️ Update browser list"
 npx --yes update-browserslist-db@latest
