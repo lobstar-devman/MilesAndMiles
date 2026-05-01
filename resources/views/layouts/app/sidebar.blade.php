@@ -15,6 +15,12 @@
                     <flux:sidebar.item icon="home" :href="route('dashboard')" :current="request()->routeIs('dashboard')" wire:navigate>
                         {{ __('Dashboard') }}
                     </flux:sidebar.item>
+
+                    @if (auth()->user()->account_type === \App\Enums\AccountType::Organisational)
+                        <flux:sidebar.item icon="building-office-2" :href="route('organisation.index')" :current="request()->routeIs('organisation.index')" wire:navigate>
+                            {{ __('Organisation Management') }}
+                        </flux:sidebar.item>
+                    @endif
                 </flux:sidebar.group>
             </flux:sidebar.nav>
 
