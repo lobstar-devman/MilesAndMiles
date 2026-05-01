@@ -126,15 +126,15 @@ services:
             POSTGRES_PASSWORD: ${PGPWD}        
             POSTGRES_USER: ${PGUSER}
 
-    playwright:
-        image: mcr.microsoft.com/playwright:v1.55.1-noble
-        #https://playwright.dev/docs/docker#recommended-docker-configuration
-        init: true
-        ipc: "host"
-        restart: unless-stopped
-        command: sleep infinity
-        volumes:
-            - /ms-playwright
+    #playwright:
+    #    image: mcr.microsoft.com/playwright:v1.55.1-noble
+    #    #https://playwright.dev/docs/docker#recommended-docker-configuration
+    #    init: true
+    #    ipc: "host"
+    #    restart: unless-stopped
+    #    command: sleep infinity
+    #    volumes:
+    #        - /ms-playwright
 
     ##
     # In the admin login screen use the following:
