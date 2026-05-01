@@ -13,6 +13,15 @@
       "Bash(php artisan test *)",
       "Bash(php artisan config:show *)",
       "Bash(php artisan list)"
-    ]
+    ],
+    "deny": [
+      "Read(.env)",
+      "Read(.env.*)",
+      "Read(**/secrets/*)",
+      "Read(**/*credential*)",
+      "Read(**/*.pem)",
+      "Read(**/*.key)",
+      "Read(**/*id_rsa*)"
+    ]    
   }
 }
