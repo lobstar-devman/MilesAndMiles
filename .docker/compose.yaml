@@ -58,42 +58,42 @@ services:
         entrypoint: /entrypoint --entrypoint docker-php-entrypoint
         command: apache2-foreground --
 
-    # end-to-end:
-        # depends_on:
-            # - app
-            # - playwright
-        # build:
-            # dockerfile: Dockerfile-playwright
-            # target: playwright_image
-            # args:
-              # #Note: To reference a value from the local .env file use: ${ENVVAR}            
-              # REPO: ${E2E_REPO}
-
-            # secrets:
-                # - github_ssh      
-
-        # ports:
-            # - "9323:9323"
-
-        # # https://docs.docker.com/reference/compose-file/services/#environment
-        # environment:
-            # - GITHUB_USERNAME   #used in /entrypoint
-            # - GITHUB_EMAIL      #used in /entrypoint
-            # - REPO_BRANCH=${E2E_BRANCH}
-            # - URLS=${E2EURLS}
-            # - AWS_SECRET_PAYLOAD
-            # - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
-
-        # secrets:
-            # # Github ssh key
-            # - source: github_ssh
-              # target: /etc/ssh/id_rsa_github
-
-        # entrypoint: /entrypoint --entrypoint npx
-        # command: playwright test --ui --ui-host=0.0.0.0 --ui-port=9323 --
-
-        # volumes_from:
-            # - playwright:ro
+    #end-to-end:
+    #    depends_on:
+    #        - app
+    #        - playwright
+    #    build:
+    #        dockerfile: Dockerfile-playwright
+    #        target: playwright_image
+    #        args:
+    #          #Note: To reference a value from the local .env file use: ${ENVVAR}            
+    #          REPO: ${E2E_REPO}
+    #
+    #        secrets:
+    #            - github_ssh      
+    #
+    #    ports:
+    #        - "9323:9323"
+    #
+    #    #https://docs.docker.com/reference/compose-file/services/#environment
+    #    environment:
+    #        - GITHUB_USERNAME   #used in /entrypoint
+    #        - GITHUB_EMAIL      #used in /entrypoint
+    #        - REPO_BRANCH=${E2E_BRANCH}
+    #        - URLS=${E2EURLS}
+    #        - AWS_SECRET_PAYLOAD
+    #        - PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+    #
+    #    secrets:
+    #        # Github ssh key
+    #        - source: github_ssh
+    #          target: /etc/ssh/id_rsa_github
+    #
+    #    entrypoint: /entrypoint --entrypoint npx
+    #    command: playwright test --ui --ui-host=0.0.0.0 --ui-port=9323 --
+    #
+    #    volumes_from:
+    #        - playwright:ro
 
 
     postgres:
@@ -136,13 +136,13 @@ services:
         volumes:
             - /ms-playwright
 
-        ##
-        # In the admin login screen use the following:
-        # System: Postgres
-        # Server: postgres:5432
-        # Username: <POSTGRES_USER> or postgres if not set
-        # Password: <POSTGRES_PASSWORD> (see POSTGRES_PASSWORD in postgres service)
-        ##
+    ##
+    # In the admin login screen use the following:
+    # System: Postgres
+    # Server: postgres:5432
+    # Username: <POSTGRES_USER> or postgres if not set
+    # Password: <POSTGRES_PASSWORD> (see POSTGRES_PASSWORD in postgres service)
+    ##
     adminer:
         depends_on:
             - postgres
@@ -157,20 +157,20 @@ services:
         volumes:
             - ./adminer:/var/www/html/plugins-enabled
 
-    ngrok:
-        #https://ngrok.com/docs/using-ngrok-with/docker/compose
-        image: ngrok/ngrok:latest
-        restart: unless-stopped
-        command:
-            - "http"
-            - "http://host.docker.internal:8080"
-            - "--url"
-            - "$APP_URL"
-        environment:
-            - NGROK_AUTHTOKEN
-            - APP_URL
-        ports:
-            - 4040:4040            
+    #ngrok:
+    #    #https://ngrok.com/docs/using-ngrok-with/docker/compose
+    #    image: ngrok/ngrok:latest
+    #    restart: unless-stopped
+    #    command:
+    #        - "http"
+    #        - "http://host.docker.internal:8080"
+    #        - "--url"
+    #        - "$APP_URL"
+    #    environment:
+    #        - NGROK_AUTHTOKEN
+    #        - APP_URL
+    #    ports:
+    #        - 4040:4040            
 
 secrets:            
     github_ssh:
